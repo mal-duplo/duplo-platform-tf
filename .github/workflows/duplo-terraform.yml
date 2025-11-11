@@ -55,7 +55,7 @@ jobs:
       DUPLO_TOKEN:  ${{ secrets.DUPLO_TOKEN }}
       DUPLO_HOST:   ${{ vars.DUPLO_HOST }}
       # DUPLO_TENANT is not needed for admin-infra creation, but harmless if present.
-      DUPLO_TENANT: ${{ github.event.inputs.environment || 'tenant1' }}
+      # DUPLO_TENANT: ${{ github.event.inputs.environment || 'tenant1' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -110,7 +110,7 @@ jobs:
     env:
       DUPLO_TOKEN:  ${{ secrets.DUPLO_TOKEN }}
       DUPLO_HOST:   ${{ vars.DUPLO_HOST }}
-      DUPLO_TENANT: ${{ needs.plan.outputs.env_name }}
+      # DUPLO_TENANT: ${{ needs.plan.outputs.env_name }}
     steps:
       - uses: actions/checkout@v4
 
