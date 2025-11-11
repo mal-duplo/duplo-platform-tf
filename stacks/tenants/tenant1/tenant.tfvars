@@ -1,4 +1,4 @@
-name = tenant-a
+name = "tenant-a"
 infra_name = "platform=-admin"
 
 # settings = {
