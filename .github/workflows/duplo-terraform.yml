@@ -2,12 +2,11 @@ name: duplo-terraform
 
 on:
   pull_request:
-    paths:
-      - 'stacks/admin-infra/**'
+    paths: [ 'stacks/admin-infra/**' ]
   workflow_dispatch:
     inputs:
       environment:
-        description: Target Duplo tenant (also the GH Environment for approval)
+        description: Target Duplo tenant (used only for GH Environment approval name)
         type: environment
         default: tenant1
 
@@ -27,7 +26,6 @@ env:
   KEY_PREFIX: duplo-platform/nonprod
 
 jobs:
-  # ---------- PR checks: fmt/validate only ----------
   pr-checks:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -45,37 +43,31 @@ jobs:
         working-directory: stacks/admin-infra
         run: terraform validate
 
-  # ---------- PLAN ----------
   plan:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       env_name: ${{ steps.envname.outputs.name }}
     env:
-      DUPLO_TOKEN:  ${{ secrets.DUPLO_TOKEN }}
-      DUPLO_HOST:   ${{ vars.DUPLO_HOST }}
-      # DUPLO_TENANT is not needed for admin-infra creation, but harmless if present.
-      # DUPLO_TENANT: ${{ github.event.inputs.environment || 'tenant1' }}
+      DUPLO_TOKEN: ${{ secrets.DUPLO_TOKEN }}
+      DUPLO_HOST:  ${{ vars.DUPLO_HOST }}
     steps:
       - uses: actions/checkout@v4
 
       - id: envname
         run: echo "name=${{ github.event.inputs.environment || 'tenant1' }}" >> $GITHUB_OUTPUT
 
-      - name: Duplo Setup
+      # Duplo Setup per docs — force ADMIN JIT by blanking tenant
+      - name: Duplo Setup (admin JIT)
         uses: duplocloud/actions@v0.0.12
         with: { mask-account-id: yes }
-
-      - name: Configure AWS Credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::359100918503:role/github-oidc-terraform
-          aws-region: ${{ env.AWS_REGION }}
+        env:
+          DUPLO_TENANT: ""   # <- this avoids "Tenant 'None' not found"
 
       - uses: hashicorp/setup-terraform@v3
         with: { terraform_version: 1.6.6 }
 
-      - name: Make cidrinc scripts executable
+      - name: Make cidrinc executable
         run: chmod +x stacks/admin-infra/cidrinc.sh || true
 
       - name: Terraform Init (remote backend)
@@ -99,35 +91,28 @@ jobs:
           name: tfplan-admin-infra
           path: stacks/admin-infra/tfplan
 
-  # ---------- APPLY (manual approval via Environment) ----------
   apply:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: plan
     runs-on: ubuntu-latest
-    # This is what will require manual approval before the job starts
     environment:
-      name: ${{ needs.plan.outputs.env_name }}
+      name: ${{ needs.plan.outputs.env_name }}   # requires manual approval in GH env
     env:
-      DUPLO_TOKEN:  ${{ secrets.DUPLO_TOKEN }}
-      DUPLO_HOST:   ${{ vars.DUPLO_HOST }}
-      # DUPLO_TENANT: ${{ needs.plan.outputs.env_name }}
+      DUPLO_TOKEN: ${{ secrets.DUPLO_TOKEN }}
+      DUPLO_HOST:  ${{ vars.DUPLO_HOST }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Duplo Setup
+      - name: Duplo Setup (admin JIT)
         uses: duplocloud/actions@v0.0.12
         with: { mask-account-id: yes }
-
-      - name: Configure AWS Credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::359100918503:role/github-oidc-terraform
-          aws-region: ${{ env.AWS_REGION }}
+        env:
+          DUPLO_TENANT: ""
 
       - uses: hashicorp/setup-terraform@v3
         with: { terraform_version: 1.6.6 }
 
-      - name: Make cidrinc scripts executable
+      - name: Make cidrinc executable
         run: chmod +x stacks/admin-infra/cidrinc.sh || true
 
       - name: Terraform Init (remote backend)
