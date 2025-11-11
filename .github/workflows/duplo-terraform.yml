@@ -3,18 +3,13 @@ name: duplo-terraform
 on:
   pull_request:
     paths:
-      - 'stacks/**'
+      - 'stacks/admin-infra/**'
   workflow_dispatch:
     inputs:
       environment:
-        description: Target Duplo tenant (maps to GH Environment)
+        description: Target Duplo tenant (also the GH Environment for approval)
         type: environment
         default: tenant1
-# Optionally also run on push to main:
-#  push:
-#    branches: [ main ]
-#    paths:
-#      - 'stacks/**'
 
 permissions:
   id-token: write
@@ -32,131 +27,59 @@ env:
   KEY_PREFIX: duplo-platform/nonprod
 
 jobs:
-  # ---- PR checks: fmt/validate only (no AWS, no remote backend) ----
+  # ---------- PR checks: fmt/validate only ----------
   pr-checks:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        module:
-          - stacks/admin-infra
-          - stacks/eks-nodes/admin
-          - stacks/tenants/tenant1
-          - stacks/tenants/tenant2
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.6.6
-
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.6.6 }
       - name: Terraform FMT (check)
-        working-directory: ${{ matrix.module }}
+        working-directory: stacks/admin-infra
         run: terraform fmt -check -diff -recursive
-
       - name: Terraform Init (local, no backend)
-        working-directory: ${{ matrix.module }}
+        working-directory: stacks/admin-infra
         run: terraform init -backend=false
-
       - name: Terraform Validate
-        working-directory: ${{ matrix.module }}
+        working-directory: stacks/admin-infra
         run: terraform validate
 
-  # ---- Detect changes (used by plan/apply runs) ----
-  detect-changes:
+  # ---------- PLAN ----------
+  plan:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
-      admin: ${{ steps.f.outputs.admin }}
-      eks_admin: ${{ steps.f.outputs.eks_admin }}
-      t1: ${{ steps.f.outputs.t1 }}
-      t2: ${{ steps.f.outputs.t2 }}
       env_name: ${{ steps.envname.outputs.name }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Determine environment name
-        id: envname
-        shell: bash
-        run: |
-          echo "name=${{ github.event.inputs.environment || 'tenant1' }}" >> $GITHUB_OUTPUT
-
-      - uses: dorny/paths-filter@v3
-        id: f
-        with:
-          filters: |
-            admin:
-              - 'stacks/admin-infra/**'
-            eks_admin:
-              - 'stacks/eks-nodes/admin/**'
-            t1:
-              - 'stacks/tenants/tenant1/**'
-            t2:
-              - 'stacks/tenants/tenant2/**'
-
-  # ---- Plan/Apply (manual run or push to main if enabled) ----
-  plan-apply:
-    if: github.event_name != 'pull_request'
-    needs: detect-changes
-    runs-on: ubuntu-latest
-    environment:
-      name: ${{ needs.detect-changes.outputs.env_name }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: admin-infra
-            run_if: ${{ needs.detect-changes.outputs.admin == 'true' || github.event_name == 'workflow_dispatch' }}
-            workdir: stacks/admin-infra
-            key_suffix: admin-infra/terraform.tfstate
-          - name: eks-nodes-admin
-            run_if: ${{ needs.detect-changes.outputs.eks_admin == 'true' || github.event_name == 'workflow_dispatch' }}
-            workdir: stacks/eks-nodes/admin
-            key_suffix: eks-nodes/admin/terraform.tfstate
-          - name: tenant1
-            run_if: ${{ needs.detect-changes.outputs.t1 == 'true' || (github.event_name == 'workflow_dispatch' && needs.detect-changes.outputs.env_name == 'tenant1') }}
-            workdir: stacks/tenants/tenant1
-            key_suffix: tenants/tenant1/terraform.tfstate
-          - name: tenant2
-            run_if: ${{ needs.detect-changes.outputs.t2 == 'true' || (github.event_name == 'workflow_dispatch' && needs.detect-changes.outputs.env_name == 'tenant2') }}
-            workdir: stacks/tenants/tenant2
-            key_suffix: tenants/tenant2/terraform.tfstate
-
     env:
       DUPLO_TOKEN:  ${{ secrets.DUPLO_TOKEN }}
       DUPLO_HOST:   ${{ vars.DUPLO_HOST }}
-      DUPLO_TENANT: ${{ needs.detect-changes.outputs.env_name }}
-
+      # DUPLO_TENANT is not needed for admin-infra creation, but harmless if present.
+      DUPLO_TENANT: ${{ github.event.inputs.environment || 'tenant1' }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check matrix condition
-        if: ${{ !matrix.run_if }}
-        run: echo "Skipping ${{ matrix.name }}"; exit 0
+      - id: envname
+        run: echo "name=${{ github.event.inputs.environment || 'tenant1' }}" >> $GITHUB_OUTPUT
 
-      # Optional: Duplo CLI (handy if you call duploctl later)
       - name: Duplo Setup
         uses: duplocloud/actions@v0.0.12
-        with:
-          mask-account-id: yes
+        with: { mask-account-id: yes }
 
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::359100918503:role/github-oidc-terraform
           aws-region: ${{ env.AWS_REGION }}
-          # If you later increase role max_session_duration:
-          # role-duration-seconds: 43200
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.6.6
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.6.6 }
+
+      - name: Make cidrinc scripts executable
+        run: chmod +x stacks/admin-infra/cidrinc.sh || true
 
       - name: Terraform Init (remote backend)
-        working-directory: ${{ matrix.workdir }}
+        working-directory: stacks/admin-infra
         run: |
           terraform init -reconfigure \
             -backend-config="bucket=${BUCKET}" \
@@ -164,20 +87,66 @@ jobs:
             -backend-config="dynamodb_table=${DDB_TABLE}" \
             -backend-config="encrypt=true" \
             -backend-config="kms_key_id=${KMS_KEY_ID}" \
-            -backend-config="key=${KEY_PREFIX}/${{ matrix.key_suffix }}"
+            -backend-config="key=${KEY_PREFIX}/admin-infra/terraform.tfstate"
 
       - name: Terraform Plan
-        id: plan
-        working-directory: ${{ matrix.workdir }}
+        working-directory: stacks/admin-infra
         run: terraform plan -input=false -no-color -out=tfplan
 
       - name: Upload plan artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-${{ matrix.name }}
-          path: ${{ matrix.workdir }}/tfplan
+          name: tfplan-admin-infra
+          path: stacks/admin-infra/tfplan
 
-      - name: Terraform Apply (main only)
-        if: github.ref == 'refs/heads/main'
-        working-directory: ${{ matrix.workdir }}
+  # ---------- APPLY (manual approval via Environment) ----------
+  apply:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: plan
+    runs-on: ubuntu-latest
+    # This is what will require manual approval before the job starts
+    environment:
+      name: ${{ needs.plan.outputs.env_name }}
+    env:
+      DUPLO_TOKEN:  ${{ secrets.DUPLO_TOKEN }}
+      DUPLO_HOST:   ${{ vars.DUPLO_HOST }}
+      DUPLO_TENANT: ${{ needs.plan.outputs.env_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Duplo Setup
+        uses: duplocloud/actions@v0.0.12
+        with: { mask-account-id: yes }
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::359100918503:role/github-oidc-terraform
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.6.6 }
+
+      - name: Make cidrinc scripts executable
+        run: chmod +x stacks/admin-infra/cidrinc.sh || true
+
+      - name: Terraform Init (remote backend)
+        working-directory: stacks/admin-infra
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=${BUCKET}" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${DDB_TABLE}" \
+            -backend-config="encrypt=true" \
+            -backend-config="kms_key_id=${KMS_KEY_ID}" \
+            -backend-config="key=${KEY_PREFIX}/admin-infra/terraform.tfstate"
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-admin-infra
+          path: stacks/admin-infra
+
+      - name: Terraform Apply (approved & main only)
+        working-directory: stacks/admin-infra
         run: terraform apply -input=false -auto-approve tfplan

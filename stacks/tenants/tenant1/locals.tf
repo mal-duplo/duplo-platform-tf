@@ -1,5 +1,5 @@
 locals {
-  name      = coalesce(var.name, terraform.workspace)
+  name = coalesce(var.name, terraform.workspace)
   # match the module’s logic: allow override via var.infra_name, else use infra state
   infra_name = coalesce(var.infra_name, data.terraform_remote_state.infra.outputs.infra_name)
 
