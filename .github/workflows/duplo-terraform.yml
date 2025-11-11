@@ -83,7 +83,10 @@ jobs:
 
       - name: Terraform Plan
         working-directory: stacks/admin-infra
-        run: terraform plan -input=false -no-color -out=tfplan
+        run: |
+          terraform plan -input=false -no-color \
+            -var-file="stacks/admin-infra/admin-infra.tfvars" \
+            -out=tfplan
 
       - name: Upload plan artifact
         uses: actions/upload-artifact@v4
