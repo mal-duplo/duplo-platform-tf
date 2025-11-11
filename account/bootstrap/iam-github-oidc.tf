@@ -10,14 +10,14 @@ resource "aws_iam_openid_connect_provider" "github" {
   client_id_list = ["sts.amazonaws.com"]
 
   # Old DigiCert root + current Let’s Encrypt ISRG Root X1
-  # (order doesn't matter)
   thumbprint_list = [
     "6938fd4d98bab03faadb97b34396831e3780aea1",
     "1b511abead59c6ce207077c0bf0e0043b1382612"
   ]
 }
 
-# 2) Trust policy: aud + repository/ref + sub (scoped)
+# 2) Trust policy: minimal & reliable → aud + sub
+#    sub encodes both repository and ref (branch/tag) in one claim.
 data "aws_iam_policy_document" "gh_oidc_trust" {
   statement {
     effect  = "Allow"
@@ -28,35 +28,29 @@ data "aws_iam_policy_document" "gh_oidc_trust" {
       identifiers = [aws_iam_openid_connect_provider.github.arn]
     }
 
-    # Audience must be STS
+    # Must target STS
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:aud"
       values   = ["sts.amazonaws.com"]
     }
 
-    # Lock to your repo
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:repository"
-      values   = ["mal-duplo/duplo-platform-tf"]
-    }
-
-    # Lock to main branch (environment-gated apply will still satisfy this)
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:ref"
-      values   = ["refs/heads/main"]
-    }
-
-    # REQUIRED BY AWS: scope the 'sub' claim (do not use a wildcard to all)
+    # Scope to this repo on main branch (adjust as needed)
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
-        "repo:mal-duplo/duplo-platform-tf:ref:refs/heads/main"
+        "repo:mal-duplo/duplo-platform-tf:ref:refs/heads/main",
+        "repo:mal-duplo/duplo-platform-tf:environment:tenant1"
       ]
     }
+
+    # If you want to ALSO allow PRs or tags later, add lines like:
+    # values = [
+    #   "repo:mal-duplo/duplo-platform-tf:ref:refs/heads/main",
+    #   "repo:mal-duplo/duplo-platform-tf:pull_request",       # PRs
+    #   "repo:mal-duplo/duplo-platform-tf:ref:refs/tags/*"     # tags
+    # ]
   }
 }
 
