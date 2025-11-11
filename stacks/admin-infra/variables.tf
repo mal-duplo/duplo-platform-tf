@@ -46,7 +46,7 @@ EOT
 variable "region" {
   description = "The region to place the infrastructure in."
   type        = string
-  default     = "us-west-2"
+  default     = "us-east-1"
 }
 
 variable "address_prefix" {
@@ -65,7 +65,7 @@ variable "azcount" {
 variable "subnet_cidr" {
   description = "The base of each of the subnets."
   type        = number
-  default     = 22
+  default     = 24
 }
 
 variable "metadata" {

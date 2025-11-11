@@ -10,10 +10,19 @@ on:
         description: Target Duplo tenant (maps to GH Environment)
         type: environment
         default: tenant1
+# Optionally also run on push to main:
+#  push:
+#    branches: [ main ]
+#    paths:
+#      - 'stacks/**'
 
 permissions:
   id-token: write
   contents: read
+
+concurrency:
+  group: duplo-terraform-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
@@ -23,8 +32,41 @@ env:
   KEY_PREFIX: duplo-platform/nonprod
 
 jobs:
-  # Detect which stacks changed so we only run those
+  # ---- PR checks: fmt/validate only (no AWS, no remote backend) ----
+  pr-checks:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - stacks/admin-infra
+          - stacks/eks-nodes/admin
+          - stacks/tenants/tenant1
+          - stacks/tenants/tenant2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform FMT (check)
+        working-directory: ${{ matrix.module }}
+        run: terraform fmt -check -diff -recursive
+
+      - name: Terraform Init (local, no backend)
+        working-directory: ${{ matrix.module }}
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        working-directory: ${{ matrix.module }}
+        run: terraform validate
+
+  # ---- Detect changes (used by plan/apply runs) ----
   detect-changes:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       admin: ${{ steps.f.outputs.admin }}
@@ -34,12 +76,13 @@ jobs:
       env_name: ${{ steps.envname.outputs.name }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Determine environment name
         id: envname
         shell: bash
         run: |
-          # use workflow_dispatch input if present; else default tenant1
           echo "name=${{ github.event.inputs.environment || 'tenant1' }}" >> $GITHUB_OUTPUT
+
       - uses: dorny/paths-filter@v3
         id: f
         with:
@@ -53,10 +96,11 @@ jobs:
             t2:
               - 'stacks/tenants/tenant2/**'
 
+  # ---- Plan/Apply (manual run or push to main if enabled) ----
   plan-apply:
+    if: github.event_name != 'pull_request'
     needs: detect-changes
     runs-on: ubuntu-latest
-    # On PR: always run, but limit stacks via matrix. On manual: map to selected environment
     environment:
       name: ${{ needs.detect-changes.outputs.env_name }}
     strategy:
@@ -81,38 +125,37 @@ jobs:
             key_suffix: tenants/tenant2/terraform.tfstate
 
     env:
-      DUPLO_TOKEN: ${{ secrets.DUPLO_TOKEN }}
-      DUPLO_HOST:  ${{ vars.DUPLO_HOST }}
+      DUPLO_TOKEN:  ${{ secrets.DUPLO_TOKEN }}
+      DUPLO_HOST:   ${{ vars.DUPLO_HOST }}
       DUPLO_TENANT: ${{ needs.detect-changes.outputs.env_name }}
 
     steps:
       - uses: actions/checkout@v4
 
-      # Short-circuit: skip steps when this matrix item isn't selected
       - name: Check matrix condition
         if: ${{ !matrix.run_if }}
         run: echo "Skipping ${{ matrix.name }}"; exit 0
 
-      # Duplo CLI & (optional) JIT – handy if you call duploctl, harmless if you don't
+      # Optional: Duplo CLI (handy if you call duploctl later)
       - name: Duplo Setup
         uses: duplocloud/actions@v0.0.12
         with:
           mask-account-id: yes
 
-      # AWS creds via OIDC (preferred for TF)
-      - name: Configure AWS Credentials
+      - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::359100918503:role/github-oidc-terraform
           aws-region: ${{ env.AWS_REGION }}
+          # If you later increase role max_session_duration:
+          # role-duration-seconds: 43200
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
 
-      # Backend init with your bucket/table/KMS and per-stack key
-      - name: Terraform Init
+      - name: Terraform Init (remote backend)
         working-directory: ${{ matrix.workdir }}
         run: |
           terraform init -reconfigure \
@@ -134,7 +177,6 @@ jobs:
           name: tfplan-${{ matrix.name }}
           path: ${{ matrix.workdir }}/tfplan
 
-      # Apply only on main; gate via environment protection if you configured it
       - name: Terraform Apply (main only)
         if: github.ref == 'refs/heads/main'
         working-directory: ${{ matrix.workdir }}

@@ -10,13 +10,10 @@ resource "aws_iam_openid_connect_provider" "github" {
   thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"] # GitHub OIDC root CA
 }
 
-# 2) Trust policy for the role assumed by GitHub Actions via OIDC
-#    - aud must be sts.amazonaws.com
-#    - repository must be mal-duplo/duplo-platform-tf
-#    - ref must be refs/heads/main (limit to main branch)
+# 2) Trust policy: aud + sub (required), optionally repository/ref
 data "aws_iam_policy_document" "gh_oidc_trust" {
   statement {
-    effect = "Allow"
+    effect  = "Allow"
     actions = ["sts:AssumeRoleWithWebIdentity"]
 
     principals {
@@ -24,25 +21,40 @@ data "aws_iam_policy_document" "gh_oidc_trust" {
       identifiers = [aws_iam_openid_connect_provider.github.arn]
     }
 
+    # Required: OIDC audience
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:aud"
       values   = ["sts.amazonaws.com"]
     }
 
+    # REQUIRED BY AWS: scope the 'sub' claim (repo + ref)
+    # Allow only this repo on the main branch
     condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:repository"
-      values   = ["mal-duplo/duplo-platform-tf"]
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values = [
+        "repo:mal-duplo/duplo-platform-tf:ref:refs/heads/main",
+        # Optional additions you may want later:
+        # "repo:mal-duplo/duplo-platform-tf:pull_request",
+        # "repo:mal-duplo/duplo-platform-tf:ref:refs/heads/development",
+        # "repo:mal-duplo/duplo-platform-tf:ref:refs/tags/*",
+      ]
     }
 
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:ref"
-      values   = ["refs/heads/main"]
-    }
+    # (Optional) extra clarity — you can keep these or remove them.
+    # condition {
+    #   test     = "StringEquals"
+    #   variable = "token.actions.githubusercontent.com:repository"
+    #   values   = ["mal-duplo/duplo-platform-tf"]
+    # }
+    # condition {
+    #   test     = "StringEquals"
+    #   variable = "token.actions.githubusercontent.com:ref"
+    #   values   = ["refs/heads/main"]
+    # }
 
-    # Optional hardening: only allow when a specific GitHub Environment is used
+    # (Optional) harden by environment:
     # condition {
     #   test     = "StringEquals"
     #   variable = "token.actions.githubusercontent.com:environment"
@@ -131,8 +143,7 @@ resource "aws_iam_role_policy_attachment" "attach_backend" {
   policy_arn = aws_iam_policy.tf_backend.arn
 }
 
-# 4) Infrastructure permissions (START least-privileged; expand as needed)
-#    Example scaffold for networking + EKS (+ PassRole). Adjust to your stacks.
+# 4) Infrastructure permissions (adjust to your modules over time)
 data "aws_iam_policy_document" "tf_infra" {
   statement {
     sid    = "Networking"
@@ -141,7 +152,6 @@ data "aws_iam_policy_document" "tf_infra" {
       "ec2:CreateTags",
       "ec2:DeleteTags",
       "ec2:Describe*",
-      # Scope these further as you refine modules:
       "ec2:CreateVpc", "ec2:DeleteVpc", "ec2:ModifyVpcAttribute",
       "ec2:CreateSubnet", "ec2:DeleteSubnet", "ec2:ModifySubnetAttribute",
       "ec2:CreateRouteTable", "ec2:DeleteRouteTable", "ec2:AssociateRouteTable", "ec2:DisassociateRouteTable",
@@ -154,28 +164,24 @@ data "aws_iam_policy_document" "tf_infra" {
   }
 
   statement {
-    sid    = "EKS"
-    effect = "Allow"
-    actions = [
-      "eks:*"
-    ]
+    sid     = "EKS"
+    effect  = "Allow"
+    actions = ["eks:*"]
     resources = ["*"]
   }
 
   statement {
-    sid    = "IamPassRoleForEks"
-    effect = "Allow"
+    sid     = "IamPassRoleForEks"
+    effect  = "Allow"
     actions = ["iam:PassRole"]
-    resources = ["*"] # TODO: narrow to specific node group/fargate/cluster role ARNs your modules create
-    # Optional condition to limit which services can receive the role:
+    resources = ["*"] # tighten to your nodegroup/fargate/cluster role ARNs later
+    # Optional:
     # condition {
     #   test     = "StringEquals"
     #   variable = "iam:PassedToService"
     #   values   = ["eks.amazonaws.com", "ec2.amazonaws.com"]
     # }
   }
-
-  # Add other service permissions your stacks require (ECR, CloudWatch, IAM, etc.)
 }
 
 resource "aws_iam_policy" "tf_infra" {
@@ -189,9 +195,7 @@ resource "aws_iam_role_policy_attachment" "attach_infra" {
   policy_arn = aws_iam_policy.tf_infra.arn
 }
 
-############################################################
-# Outputs (optional)
-############################################################
+# Optional output
 output "github_oidc_role_arn" {
   value = aws_iam_role.github_oidc_terraform.arn
 }
