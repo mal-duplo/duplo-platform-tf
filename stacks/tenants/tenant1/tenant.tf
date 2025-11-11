@@ -1,3 +1,6 @@
+## 
+# for tenant deletion, when `delete_protection` false then `allow_deletion` true
+## 
 resource "duplocloud_tenant" "this" {
   account_name   = local.name
   plan_id        = local.infra_name
