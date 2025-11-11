@@ -3,7 +3,8 @@ name: duplo-terraform
 on:
   pull_request:
     paths:
-      - 'stacks/**'
+      - 'stacks/admin-infra/**'
+      # - 'stacks/**'
   workflow_dispatch:
     inputs:
       environment:
@@ -41,9 +42,9 @@ jobs:
       matrix:
         module:
           - stacks/admin-infra
-          - stacks/eks-nodes/admin
-          - stacks/tenants/tenant1
-          - stacks/tenants/tenant2
+          # - stacks/eks-nodes/admin
+          # - stacks/tenants/tenant1
+          # - stacks/tenants/tenant2
     steps:
       - uses: actions/checkout@v4
 
@@ -89,12 +90,12 @@ jobs:
           filters: |
             admin:
               - 'stacks/admin-infra/**'
-            eks_admin:
-              - 'stacks/eks-nodes/admin/**'
-            t1:
-              - 'stacks/tenants/tenant1/**'
-            t2:
-              - 'stacks/tenants/tenant2/**'
+          # eks_admin:
+          #   - 'stacks/eks-nodes/admin/**'
+          # t1:
+          #   - 'stacks/tenants/tenant1/**'
+          # t2:
+          #   - 'stacks/tenants/tenant2/**'
 
   # ---- Plan/Apply (manual run or push to main if enabled) ----
   plan-apply:
@@ -111,18 +112,18 @@ jobs:
             run_if: ${{ needs.detect-changes.outputs.admin == 'true' || github.event_name == 'workflow_dispatch' }}
             workdir: stacks/admin-infra
             key_suffix: admin-infra/terraform.tfstate
-          - name: eks-nodes-admin
-            run_if: ${{ needs.detect-changes.outputs.eks_admin == 'true' || github.event_name == 'workflow_dispatch' }}
-            workdir: stacks/eks-nodes/admin
-            key_suffix: eks-nodes/admin/terraform.tfstate
-          - name: tenant1
-            run_if: ${{ needs.detect-changes.outputs.t1 == 'true' || (github.event_name == 'workflow_dispatch' && needs.detect-changes.outputs.env_name == 'tenant1') }}
-            workdir: stacks/tenants/tenant1
-            key_suffix: tenants/tenant1/terraform.tfstate
-          - name: tenant2
-            run_if: ${{ needs.detect-changes.outputs.t2 == 'true' || (github.event_name == 'workflow_dispatch' && needs.detect-changes.outputs.env_name == 'tenant2') }}
-            workdir: stacks/tenants/tenant2
-            key_suffix: tenants/tenant2/terraform.tfstate
+          # - name: eks-nodes-admin
+          #   run_if: ${{ needs.detect-changes.outputs.eks_admin == 'true' || github.event_name == 'workflow_dispatch' }}
+          #   workdir: stacks/eks-nodes/admin
+          #   key_suffix: eks-nodes/admin/terraform.tfstate
+          # - name: tenant1
+          #   run_if: ${{ needs.detect-changes.outputs.t1 == 'true' || (github.event_name == 'workflow_dispatch' && needs.detect-changes.outputs.env_name == 'tenant1') }}
+          #   workdir: stacks/tenants/tenant1
+          #   key_suffix: tenants/tenant1/terraform.tfstate
+          # - name: tenant2
+          #   run_if: ${{ needs.detect-changes.outputs.t2 == 'true' || (github.event_name == 'workflow_dispatch' && needs.detect-changes.outputs.env_name == 'tenant2') }}
+          #   workdir: stacks/tenants/tenant2
+          #   key_suffix: tenants/tenant2/terraform.tfstate
 
     env:
       DUPLO_TOKEN:  ${{ secrets.DUPLO_TOKEN }}

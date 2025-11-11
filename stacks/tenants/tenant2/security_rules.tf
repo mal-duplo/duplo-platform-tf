@@ -8,11 +8,11 @@ resource "duplocloud_tenant_network_security_rule" "this" {
       source_address = rule.source_address
       tenant_id      = (rule.source_tenant == null && rule.source_address == null) ? local.parent_obj.id : local.tenant_id
       source_tenant  = (rule.source_tenant == null && rule.source_address == null) ? local.name : rule.source_tenant
-      description    = coalesce(
+      description = coalesce(
         rule.description,
         (rule.source_tenant == null && rule.source_address == null)
-          ? "${local.name} to port ${rule.to_port}"
-          : "${coalesce(rule.source_tenant, rule.source_address)} to port ${rule.to_port}"
+        ? "${local.name} to port ${rule.to_port}"
+        : "${coalesce(rule.source_tenant, rule.source_address)} to port ${rule.to_port}"
       )
     }
   }

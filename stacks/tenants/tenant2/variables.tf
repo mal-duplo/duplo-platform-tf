@@ -17,10 +17,10 @@ variable "parent" {
   type        = string
   nullable    = true
   default     = null
-#   validation {
-#     condition     = !(var.parent != null && var.infra_name != null)
-#     error_message = "parent and infra_name are mutually exclusive. Using parent will infer the infrastructure."
-#   }
+  #   validation {
+  #     condition     = !(var.parent != null && var.infra_name != null)
+  #     error_message = "parent and infra_name are mutually exclusive. Using parent will infer the infrastructure."
+  #   }
 }
 
 variable "security_rules" {
@@ -37,17 +37,17 @@ EOT
     to_port        = number
   }))
   default = []
-#   validation {
-#     condition = !(
-#       var.parent == null && anytrue([
-#         for rule in var.security_rules : (
-#           rule.source_tenant == null &&
-#           rule.source_address == null
-#         )
-#       ])
-#     )
-#     error_message = "Parent must be set if any security_rules omit source_tenant and source_address."
-#   }
+  #   validation {
+  #     condition = !(
+  #       var.parent == null && anytrue([
+  #         for rule in var.security_rules : (
+  #           rule.source_tenant == null &&
+  #           rule.source_address == null
+  #         )
+  #       ])
+  #     )
+  #     error_message = "Parent must be set if any security_rules omit source_tenant and source_address."
+  #   }
 }
 
 variable "grants" {
@@ -61,15 +61,15 @@ EOT
   }))
   default = []
   validation {
-    condition = !anytrue([for g in var.grants : !contains(["s3","dynamodb","kms"], g.area)])
+    condition     = !anytrue([for g in var.grants : !contains(["s3", "dynamodb", "kms"], g.area)])
     error_message = "grant.area must be one of: s3, dynamodb, kms."
   }
-#   validation {
-#     condition = !(
-#       var.parent == null && anytrue([for g in var.grants : g.grantee == null])
-#     )
-#     error_message = "Parent must be set if any grant omits grantee (implies parent -> this tenant)."
-#   }
+  #   validation {
+  #     condition = !(
+  #       var.parent == null && anytrue([for g in var.grants : g.grantee == null])
+  #     )
+  #     error_message = "Parent must be set if any grant omits grantee (implies parent -> this tenant)."
+  #   }
 }
 
 variable "settings" {
