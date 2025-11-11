@@ -5,7 +5,7 @@ module "configurations" {
   }
 
   source  = "duplocloud/components/duplocloud//submodules/configuration"
-  version = "~> 0.11.27"
+  version = "~> 0.0.41"
 
   tenant_id   = local.tenant_id
   name        = each.key
