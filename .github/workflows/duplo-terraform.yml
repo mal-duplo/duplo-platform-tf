@@ -57,12 +57,12 @@ jobs:
       - id: envname
         run: echo "name=${{ github.event.inputs.environment || 'tenant1' }}" >> $GITHUB_OUTPUT
 
-      # Duplo Setup per docs — force ADMIN JIT by blanking tenant
-      - name: Duplo Setup (admin JIT)
-        uses: duplocloud/actions@v0.0.12
-        with: { mask-account-id: yes }
-        env:
-          DUPLO_TENANT: ""   # <- this avoids "Tenant 'None' not found"
+      # 🔑 Use AWS OIDC role — no Duplo JIT
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::359100918503:role/github-oidc-terraform
+          aws-region: ${{ env.AWS_REGION }}
 
       - uses: hashicorp/setup-terraform@v3
         with: { terraform_version: 1.6.6 }
@@ -96,18 +96,19 @@ jobs:
     needs: plan
     runs-on: ubuntu-latest
     environment:
-      name: ${{ needs.plan.outputs.env_name }}   # requires manual approval in GH env
+      name: ${{ needs.plan.outputs.env_name }}   # requires manual approval in GH Environment
     env:
       DUPLO_TOKEN: ${{ secrets.DUPLO_TOKEN }}
       DUPLO_HOST:  ${{ vars.DUPLO_HOST }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Duplo Setup (admin JIT)
-        uses: duplocloud/actions@v0.0.12
-        with: { mask-account-id: yes }
-        env:
-          DUPLO_TENANT: ""
+      # 🔑 Use AWS OIDC role — no Duplo JIT
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::359100918503:role/github-oidc-terraform
+          aws-region: ${{ env.AWS_REGION }}
 
       - uses: hashicorp/setup-terraform@v3
         with: { terraform_version: 1.6.6 }
