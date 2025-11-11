@@ -2,11 +2,11 @@ name: duplo-terraform
 
 on:
   pull_request:
-    paths: [ 'stacks/admin-infra/**' ]
+    paths: ['stacks/admin-infra/**']
   workflow_dispatch:
     inputs:
       environment:
-        description: Target Duplo tenant (used only for GH Environment approval name)
+        description: Target Duplo tenant (for GH Environment approval name)
         type: environment
         default: tenant1
 
@@ -26,6 +26,7 @@ env:
   KEY_PREFIX: duplo-platform/nonprod
 
 jobs:
+  # ---------- PR checks (fmt/validate only) ----------
   pr-checks:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -43,7 +44,8 @@ jobs:
         working-directory: stacks/admin-infra
         run: terraform validate
 
-  plan:
+  # ---------- PLAN: admin-infra ----------
+  plan-admin:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
@@ -57,7 +59,6 @@ jobs:
       - id: envname
         run: echo "name=${{ github.event.inputs.environment || 'tenant1' }}" >> $GITHUB_OUTPUT
 
-      # 🔑 Use AWS OIDC role — no Duplo JIT
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -81,32 +82,28 @@ jobs:
             -backend-config="kms_key_id=${KMS_KEY_ID}" \
             -backend-config="key=${KEY_PREFIX}/admin-infra/terraform.tfstate"
 
-      - name: Terraform Plan
+      - name: Terraform Plan (admin-infra)
         working-directory: stacks/admin-infra
-        run: |
-          terraform plan -input=false -no-color \
-            -var-file="admin-infra.tfvars" \
-            -out=tfplan
+        run: terraform plan -input=false -no-color -var-file="admin-infra.tfvars" -out=tfplan
 
-      - name: Upload plan artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: tfplan-admin-infra
           path: stacks/admin-infra/tfplan
 
-  apply:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: plan
+  # ---------- APPLY: admin-infra (requires manual approval via Environment) ----------
+  apply-admin:
+    if: github.event_name != 'pull_request'
+    needs: plan-admin
     runs-on: ubuntu-latest
     environment:
-      name: ${{ needs.plan.outputs.env_name }}   # requires manual approval in GH Environment
+      name: ${{ needs.plan-admin.outputs.env_name }}
     env:
       DUPLO_TOKEN: ${{ secrets.DUPLO_TOKEN }}
       DUPLO_HOST:  ${{ vars.DUPLO_HOST }}
     steps:
       - uses: actions/checkout@v4
 
-      # 🔑 Use AWS OIDC role — no Duplo JIT
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -115,9 +112,6 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with: { terraform_version: 1.6.6 }
-
-      - name: Make cidrinc executable
-        run: chmod +x stacks/admin-infra/cidrinc.sh || true
 
       - name: Terraform Init (remote backend)
         working-directory: stacks/admin-infra
@@ -130,12 +124,94 @@ jobs:
             -backend-config="kms_key_id=${KMS_KEY_ID}" \
             -backend-config="key=${KEY_PREFIX}/admin-infra/terraform.tfstate"
 
-      - name: Download plan artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: tfplan-admin-infra
           path: stacks/admin-infra
 
-      - name: Terraform Apply (approved & main only)
+      - name: Terraform Apply (admin-infra)
         working-directory: stacks/admin-infra
+        run: terraform apply -input=false -auto-approve tfplan
+
+  # ---------- PLAN: tenant1 (runs ONLY after admin-infra is APPLIED) ----------
+  plan-tenant1:
+    if: github.event_name != 'pull_request'
+    needs: apply-admin
+    runs-on: ubuntu-latest
+    env:
+      DUPLO_TOKEN: ${{ secrets.DUPLO_TOKEN }}
+      DUPLO_HOST:  ${{ vars.DUPLO_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::359100918503:role/github-oidc-terraform
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.6.6 }
+
+      - name: Terraform Init (remote backend) - tenant1
+        working-directory: stacks/tenants/tenant1
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=${BUCKET}" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${DDB_TABLE}" \
+            -backend-config="encrypt=true" \
+            -backend-config="kms_key_id=${KMS_KEY_ID}" \
+            -backend-config="key=${KEY_PREFIX}/tenants/tenant1/terraform.tfstate"
+
+      - name: Terraform Plan (tenant1)
+        working-directory: stacks/tenants/tenant1
+        run: terraform plan -input=false -no-color -var-file="tenant.tfvars" -out=tfplan
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-tenant1
+          path: stacks/tenants/tenant1/tfplan
+
+  # ---------- APPLY: tenant1 ----------
+  apply-tenant1:
+    if: github.event_name != 'pull_request'
+    needs: plan-tenant1
+    runs-on: ubuntu-latest
+    # optionally gate by the same environment approval:
+    environment:
+      name: ${{ needs.plan-admin.outputs.env_name }}
+    env:
+      DUPLO_TOKEN: ${{ secrets.DUPLO_TOKEN }}
+      DUPLO_HOST:  ${{ vars.DUPLO_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::359100918503:role/github-oidc-terraform
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.6.6 }
+
+      - name: Terraform Init (remote backend) - tenant1
+        working-directory: stacks/tenants/tenant1
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=${BUCKET}" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${DDB_TABLE}" \
+            -backend-config="encrypt=true" \
+            -backend-config="kms_key_id=${KMS_KEY_ID}" \
+            -backend-config="key=${KEY_PREFIX}/tenants/tenant1/terraform.tfstate"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tfplan-tenant1
+          path: stacks/tenants/tenant1
+
+      - name: Terraform Apply (tenant1)
+        working-directory: stacks/tenants/tenant1
         run: terraform apply -input=false -auto-approve tfplan
