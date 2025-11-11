@@ -155,6 +155,11 @@ jobs:
         with:
           terraform_version: 1.6.6
 
+      - name: Make cidrinc scripts executable
+        run: |
+          chmod +x stacks/admin-infra/cidrinc.sh || true
+          chmod +x stacks/**/cidrinc.sh || true
+
       - name: Terraform Init (remote backend)
         working-directory: ${{ matrix.workdir }}
         run: |
