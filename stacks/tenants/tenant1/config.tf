@@ -1,8 +1,12 @@
 module "configurations" {
   for_each = {
-    for idx, config in var.configurations : config.name != null ? config.name : config.type == "environment" ? "env" : "config" => config
+    for idx, config in var.configurations :
+    (config.name != null ? config.name : (config.type == "environment" ? "env" : "config")) => config
   }
-  source      = "../configuration"
+
+  source  = "duplocloud/components/duplocloud//submodules/configuration"
+  version = "~> 0.11.27"
+
   tenant_id   = local.tenant_id
   name        = each.key
   enabled     = each.value.enabled
