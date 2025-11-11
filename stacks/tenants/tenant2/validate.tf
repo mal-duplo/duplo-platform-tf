@@ -10,7 +10,7 @@ locals {
 
   bad_grant_areas = [
     for g in var.grants : g.area
-    if !contains(["s3", "dynamodb", "kms"], g.area)
+    if !contains(["s3","dynamodb","kms"], g.area)
   ]
 }
 
