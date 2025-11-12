@@ -17,6 +17,11 @@ locals {
       value = v
     }
   ]
+  gpu_ssm_path = (
+    var.gpu_ami_channel == "al2023-nvidia"        ? "amazon-linux-2023/x86_64/nvidia" :
+    var.gpu_ami_channel == "al2023-arm64-nvidia"  ? "amazon-linux-2023/arm64/nvidia"  :
+                                                    "amazon-linux-2-gpu"
+  )
 }
 
 # AL2023 EKS-optimized AMI for your control-plane version
@@ -158,7 +163,7 @@ resource "random_integer" "identifier" {
 
 # --- GPU AMI (EKS optimized w/ NVIDIA) ---
 data "aws_ssm_parameter" "eks_gpu_ami" {
-  name = "/aws/service/eks/optimized-ami/${var.eks_version}/amazon-linux-2-gpu/recommended/image_id"
+  name = "/aws/service/eks/optimized-ami/${var.eks_version}/${local.gpu_ssm_path}/recommended/image_id"
 }
 
 data "aws_ami" "gpu_ami" {

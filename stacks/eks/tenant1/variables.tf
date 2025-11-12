@@ -177,3 +177,16 @@ variable "gpu_asg_ami" {
   description = "Override GPU AMI (else use EKS GPU SSM param)"
   default     = null
 }
+variable "gpu_ami_channel" {
+  description = "Which EKS GPU AMI family to use."
+  type        = string
+  default     = "al2023-nvidia"
+  validation {
+    condition = contains([
+      "al2023-nvidia",
+      "al2023-arm64-nvidia",
+      "al2-gpu"
+    ], var.gpu_ami_channel)
+    error_message = "gpu_ami_channel must be one of: al2023-nvidia, al2023-arm64-nvidia, al2-gpu."
+  }
+}
