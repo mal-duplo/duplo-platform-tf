@@ -1,5 +1,5 @@
 name        = "platform-admin"
-region      = "us-east-1" # match the original infra’s region
+region      = "us-east-1"
 azcount     = 2
 subnet_cidr = 24
 

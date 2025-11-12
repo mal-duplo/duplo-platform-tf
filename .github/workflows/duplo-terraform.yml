@@ -344,7 +344,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: plan-eks-tenant1
     runs-on: ubuntu-latest
-    # optionally gate by the same Environment approval you used earlier:
+    # optionally gate by the same Environment approval we used earlier:
     environment:
       name: ${{ needs.plan-admin.outputs.env_name }}
     env:
@@ -380,4 +380,89 @@ jobs:
 
       - name: Terraform Apply (eks/tenant1)
         working-directory: stacks/eks/tenant1
+        run: terraform apply -input=false -auto-approve tfplan
+
+  # ---------- PLAN: rds/tenant1 (runs ONLY after eks/tenant1 is APPLIED) ----------
+  plan-rds-tenant1:
+    if: github.event_name != 'pull_request'
+    needs: apply-eks-tenant1
+    runs-on: ubuntu-latest
+    env:
+      DUPLO_TOKEN: ${{ secrets.DUPLO_TOKEN }}
+      DUPLO_HOST:  ${{ vars.DUPLO_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::359100918503:role/github-oidc-terraform
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform Init (remote backend) - rds/tenant1
+        working-directory: stacks/rds/tenant1
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=${BUCKET}" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${DDB_TABLE}" \
+            -backend-config="encrypt=true" \
+            -backend-config="kms_key_id=${KMS_KEY_ID}" \
+            -backend-config="key=${KEY_PREFIX}/rds/tenant1/terraform.tfstate"
+
+      - name: Terraform Plan (rds/tenant1)
+        working-directory: stacks/rds/tenant1
+        run: terraform plan -input=false -no-color -var-file="rds.tfvars" -out=tfplan
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-rds-tenant1
+          path: stacks/rds/tenant1/tfplan
+
+  # ---------- APPLY: rds/tenant1 ----------
+  apply-rds-tenant1:
+    if: github.event_name != 'pull_request'
+    needs: plan-rds-tenant1
+    runs-on: ubuntu-latest
+    environment:
+      # reuse the same environment approval used earlier
+      name: ${{ needs.plan-admin.outputs.env_name }}
+    env:
+      DUPLO_TOKEN: ${{ secrets.DUPLO_TOKEN }}
+      DUPLO_HOST:  ${{ vars.DUPLO_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::359100918503:role/github-oidc-terraform
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform Init (remote backend) - rds/tenant1
+        working-directory: stacks/rds/tenant1
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=${BUCKET}" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${DDB_TABLE}" \
+            -backend-config="encrypt=true" \
+            -backend-config="kms_key_id=${KMS_KEY_ID}" \
+            -backend-config="key=${KEY_PREFIX}/rds/tenant1/terraform.tfstate"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tfplan-rds-tenant1
+          path: stacks/rds/tenant1
+
+      - name: Terraform Apply (rds/tenant1)
+        working-directory: stacks/rds/tenant1
         run: terraform apply -input=false -auto-approve tfplan
