@@ -4,7 +4,7 @@ data "duplocloud_tenant" "this" {
 }
 
 locals {
-  tenant_id = data.duplocloud_tenant.this.tenant_id
+  tenant_id = data.duplocloud_tenant.this.id
 }
 
 resource "random_password" "db_master" {
