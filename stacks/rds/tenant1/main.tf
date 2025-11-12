@@ -20,20 +20,17 @@ resource "duplocloud_rds_instance" "this" {
 
   # Duplo schema:
   # - size: allocated storage in GiB
-  # - engine: numeric enum (e.g. 1 = Postgres)
+  # - engine: numeric enum (e.g. 1 = PostgreSQL)
   size           = var.db_allocated_storage
   engine         = 1                      # 1 = PostgreSQL in Duplo’s engine enum
   engine_version = var.db_engine_version  # e.g. "16.3"
 
-  # DB-specific fields
-  db_name  = var.db_name
-  username = var.db_username
-  password = random_password.db_master.result
+  db_name = var.db_name
 
   multi_az = false
 
-  # At-rest encryption with tenant KMS key.
-  # Duplo will infer encryption from kms_key_id.
+  # At-rest encryption with tenant KMS key
+  # Duplo will infer encryption from kms_key_id
   kms_key_id = var.tenant_kms_key_arn
 }
 
@@ -47,6 +44,8 @@ resource "aws_secretsmanager_secret" "db_credentials" {
 resource "aws_secretsmanager_secret_version" "db_credentials" {
   secret_id = aws_secretsmanager_secret.db_credentials.id
 
+  # These are the *application* credentials
+  # We can later create this user inside the DB using the master account
   secret_string = jsonencode({
     username = var.db_username
     password = random_password.db_master.result
