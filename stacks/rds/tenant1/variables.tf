@@ -26,13 +26,6 @@ variable "db_username" {
   default     = "appuser"
 }
 
-variable "db_instance_class" {
-  description = "RDS instance size"
-  type        = string
-  # cheap-ish, Postgres-supported class
-  default     = "db.t4g.micro"
-}
-
 variable "db_allocated_storage" {
   description = "RDS storage in GiB"
   type        = number

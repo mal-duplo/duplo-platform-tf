@@ -4,6 +4,7 @@ data "duplocloud_tenant" "this" {
 }
 
 locals {
+  # duplocloud_tenant data source exposes `id` (tenant GUID)
   tenant_id = data.duplocloud_tenant.this.id
 }
 
@@ -12,30 +13,28 @@ resource "random_password" "db_master" {
   special = true
 }
 
-# RDS instance inside tenant-a VPC
+# RDS instance inside tenant-a VPC (Duplo-managed)
 resource "duplocloud_rds_instance" "this" {
   tenant_id = local.tenant_id
   name      = "${var.tenant_name}-app-db"
 
-  engine         = "postgres"
-  engine_version = var.db_engine_version
-  instance_class = var.db_instance_class
-  storage_type   = "gp3"
+  # Duplo schema:
+  # - size: allocated storage in GiB
+  # - engine: numeric enum (e.g. 1 = Postgres)
+  size           = var.db_allocated_storage
+  engine         = 1                      # 1 = PostgreSQL in Duplo’s engine enum
+  engine_version = var.db_engine_version  # e.g. "16.3"
 
-  db_name     = var.db_name
-  db_username = var.db_username
-  db_password = random_password.db_master.result
+  # DB-specific fields
+  db_name  = var.db_name
+  username = var.db_username
+  password = random_password.db_master.result
 
-  # At-rest encryption with tenant KMS key
-  storage_encrypted = true
-  kms_key_id        = var.tenant_kms_key_arn
+  multi_az = false
 
-  allocated_storage       = var.db_allocated_storage
-  backup_retention_period = 1
-
-  publicly_accessible = false
-  multi_az            = false
-  deletion_protection = false
+  # At-rest encryption with tenant KMS key.
+  # Duplo will infer encryption from kms_key_id.
+  kms_key_id = var.tenant_kms_key_arn
 }
 
 # Secrets Manager secret encrypted with tenant KMS
