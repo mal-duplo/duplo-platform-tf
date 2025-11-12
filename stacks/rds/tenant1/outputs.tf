@@ -1,8 +1,3 @@
-output "endpoint" {
-  description = "RDS endpoint hostname"
-  value       = duplocloud_rds_instance.this.address
-}
-
 output "port" {
   description = "RDS port"
   value       = duplocloud_rds_instance.this.port
