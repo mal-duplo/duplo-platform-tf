@@ -21,7 +21,7 @@ variable "db_name" {
 }
 
 variable "db_username" {
-  description = "Master DB username"
+  description = "Application DB username (what your app will use)"
   type        = string
   default     = "appuser"
 }
