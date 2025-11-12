@@ -158,7 +158,7 @@ resource "random_integer" "identifier" {
 
 # --- GPU AMI (EKS optimized w/ NVIDIA) ---
 data "aws_ssm_parameter" "eks_gpu_ami" {
-  name = "/aws/service/eks/optimized-ami/${var.eks_version}/amazon-linux-2023/x86_64/gpu/recommended/image_id"
+  name = "/aws/service/eks/optimized-ami/${var.eks_version}/amazon-linux-2/gpu/recommended/image_id"
 }
 
 data "aws_ami" "gpu_ami" {
