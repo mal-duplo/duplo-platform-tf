@@ -173,6 +173,19 @@ data "aws_iam_policy_document" "tf_infra" {
     #   values   = ["eks.amazonaws.com", "ec2.amazonaws.com"]
     # }
   }
+
+  statement {
+    sid     = "SsmPublicParameterRead"
+    effect  = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+      "ssm:DescribeParameters"
+    ]
+    resources = [
+      "arn:aws:ssm:us-east-1::parameter/aws/service/eks/*"
+    ]
+  }
 }
 
 resource "aws_iam_policy" "tf_infra" {
