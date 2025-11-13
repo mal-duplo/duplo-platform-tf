@@ -21,9 +21,15 @@ variable "db_name" {
 }
 
 variable "db_username" {
-  description = "Application DB username (what your app will use)"
+  description = "Master DB username"
   type        = string
   default     = "appuser"
+}
+
+variable "db_instance_class" {
+  description = "RDS instance size"
+  type        = string
+  default     = "db.t4g.micro"
 }
 
 variable "db_allocated_storage" {
