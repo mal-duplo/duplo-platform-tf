@@ -13,27 +13,25 @@ resource "random_password" "db_master" {
   special = true
 }
 
-# RDS instance inside tenant-a VPC (Duplo-managed)
+# Duplo-managed RDS instance inside the tenant VPC
 resource "duplocloud_rds_instance" "this" {
   tenant_id = local.tenant_id
   name      = "${var.tenant_name}-app-db"
 
-  # Duplo schema:
-  # - size: allocated storage in GiB
-  # - engine: numeric enum (e.g. 1 = Postgres)
-  size           = var.db_allocated_storage
-  engine         = 1                      # 1 = PostgreSQL in Duplo’s enum
-  engine_version = var.db_engine_version  # e.g. "16.3"
+  engine = 1                          # 1 = PostgreSQL
+  size   = var.db_instance_class      # ex: "db.t4g.micro"
 
-  db_name  = var.db_name
-  username = var.db_username
-  password = random_password.db_master.result
+  allocated_storage = var.db_allocated_storage
+  engine_version    = var.db_engine_version
+
+  master_username = var.db_username
+  master_password = random_password.db_master.result
+
+  # Encryption with tenant KMS key
+  encrypt_storage = true
+  kms_key_id      = var.tenant_kms_key_arn
 
   multi_az = false
-
-  # At-rest encryption with tenant KMS key
-  # Duplo infers encryption from kms_key_id
-  kms_key_id = var.tenant_kms_key_arn
 }
 
 # Secrets Manager secret encrypted with tenant KMS
@@ -46,10 +44,12 @@ resource "aws_secretsmanager_secret" "db_credentials" {
 resource "aws_secretsmanager_secret_version" "db_credentials" {
   secret_id = aws_secretsmanager_secret.db_credentials.id
 
-  # NOTE: no host/port here (Duplo resource does not expose address/port attributes)
   secret_string = jsonencode({
     username = var.db_username
     password = random_password.db_master.result
+    host     = duplocloud_rds_instance.this.host
+    port     = duplocloud_rds_instance.this.port
     dbname   = var.db_name
+    endpoint = duplocloud_rds_instance.this.endpoint
   })
 }
