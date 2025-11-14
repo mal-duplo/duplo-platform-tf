@@ -118,7 +118,7 @@ data "aws_iam_policy_document" "tf_backend" {
       "kms:DescribeKey"
     ]
     resources = [
-      "arn:aws:kms:us-east-1:359100918503:key/8277ea5a-e952-4ed1-8ae7-31bc14e38195"
+      "arn:aws:kms:us-east-1:359100918503:key/4f465fd5-e497-4485-b0bb-1a43277ab47f"
     ]
   }
 }
@@ -211,7 +211,7 @@ data "aws_iam_policy_document" "tf_infra" {
       "kms:DescribeKey"
     ]
     resources = [
-      "arn:aws:kms:us-east-1:359100918503:key/12345678-90ab-cdef-1234-567890abcdef"
+      "arn:aws:kms:us-east-1:359100918503:key/4f465fd5-e497-4485-b0bb-1a43277ab47f"
     ]
   }
 }
