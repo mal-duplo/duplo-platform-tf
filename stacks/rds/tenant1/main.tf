@@ -29,7 +29,7 @@ resource "duplocloud_rds_instance" "this" {
 
   # Encryption with tenant KMS key
   encrypt_storage = true
-  kms_key_id      = var.tenant_kms_key_arn
+  kms_key_id      = var.tenant_kms_key_id
 
   multi_az = false
 }

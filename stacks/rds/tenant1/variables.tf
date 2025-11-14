@@ -9,8 +9,13 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "tenant_kms_key_id" {
+  description = "KMS key ID for this tenant (from Duplo tenant KMS page, e.g. 4f465fd5-...)"
+  type        = string
+}
+
 variable "tenant_kms_key_arn" {
-  description = "KMS key ARN for this tenant (from Duplo tenant settings)"
+  description = "Full KMS key ARN for this tenant"
   type        = string
 }
 
