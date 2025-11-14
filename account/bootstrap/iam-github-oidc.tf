@@ -182,7 +182,7 @@ data "aws_iam_policy_document" "tf_infra" {
       "ssm:DescribeParameters"
     ]
     resources = [
-      "arn:aws:ssm:us-east-1::parameter/aws/service/eks/*"
+      "arn:aws:ssm:*:*:parameter/aws/service/eks/*"
     ]
   }
 
