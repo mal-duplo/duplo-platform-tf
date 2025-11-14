@@ -3,7 +3,7 @@
 # Account: 359100918503 | Region: us-east-1
 ############################################################
 
-# 1) GitHub OIDC provider (create only if you don't already have one)
+# 1) GitHub OIDC provider (create only if we don't already have one)
 #    Include both current thumbprints GitHub publishes.
 resource "aws_iam_openid_connect_provider" "github" {
   url            = "https://token.actions.githubusercontent.com"
@@ -45,7 +45,7 @@ data "aws_iam_policy_document" "gh_oidc_trust" {
       ]
     }
 
-    # If you want to ALSO allow PRs or tags later, add lines like:
+    # If we want to ALSO allow PRs or tags later, add lines like:
     # values = [
     #   "repo:mal-duplo/duplo-platform-tf:ref:refs/heads/main",
     #   "repo:mal-duplo/duplo-platform-tf:pull_request",       # PRs
@@ -166,7 +166,6 @@ data "aws_iam_policy_document" "tf_infra" {
     effect  = "Allow"
     actions = ["iam:PassRole"]
     resources = ["*"] # tighten later to specific nodegroup/fargate/cluster roles
-    # Optional:
     # condition {
     #   test     = "StringEquals"
     #   variable = "iam:PassedToService"
@@ -186,20 +185,34 @@ data "aws_iam_policy_document" "tf_infra" {
       "arn:aws:ssm:us-east-1::parameter/aws/service/eks/*"
     ]
   }
-}
 
-resource "aws_iam_policy" "tf_infra" {
-  name        = "terraform-infra-access"
-  description = "Permissions Terraform needs to create infra (scope as required)"
-  policy      = data.aws_iam_policy_document.tf_infra.json
-}
+  statement {
+    sid     = "SecretsManagerRds"
+    effect  = "Allow"
+    actions = [
+      "secretsmanager:CreateSecret",
+      "secretsmanager:PutSecretValue",
+      "secretsmanager:UpdateSecret",
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:TagResource"
+    ]
+    resources = [
+      "arn:aws:secretsmanager:us-east-1:359100918503:secret:tenant-a/rds/appdb-*"
+    ]
+  }
 
-resource "aws_iam_role_policy_attachment" "attach_infra" {
-  role       = aws_iam_role.github_oidc_terraform.name
-  policy_arn = aws_iam_policy.tf_infra.arn
-}
-
-# Optional output
-output "github_oidc_role_arn" {
-  value = aws_iam_role.github_oidc_terraform.arn
+  statement {
+    sid     = "KmsForTenantRdsSecret"
+    effect  = "Allow"
+    actions = [
+      "kms:Encrypt",
+      "kms:Decrypt",
+      "kms:GenerateDataKey*",
+      "kms:DescribeKey"
+    ]
+    resources = [
+      "arn:aws:kms:us-east-1:359100918503:key/YOUR_TENANT_KEY_ID_HERE"
+    ]
+  }
 }
