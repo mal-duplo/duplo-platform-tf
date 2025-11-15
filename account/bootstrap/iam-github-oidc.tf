@@ -3,7 +3,7 @@
 # Account: 359100918503 | Region: us-east-1
 ############################################################
 
-# 1) GitHub OIDC provider (create only if you don't already have one)
+# 1) GitHub OIDC provider (create only if we don't already have one)
 #    Include both current thumbprints GitHub publishes.
 resource "aws_iam_openid_connect_provider" "github" {
   url            = "https://token.actions.githubusercontent.com"
@@ -45,7 +45,7 @@ data "aws_iam_policy_document" "gh_oidc_trust" {
       ]
     }
 
-    # If you want to ALSO allow PRs or tags later, add lines like:
+    # If we want to ALSO allow PRs or tags later, add lines like:
     # values = [
     #   "repo:mal-duplo/duplo-platform-tf:ref:refs/heads/main",
     #   "repo:mal-duplo/duplo-platform-tf:pull_request",       # PRs
@@ -134,7 +134,7 @@ resource "aws_iam_role_policy_attachment" "attach_backend" {
   policy_arn = aws_iam_policy.tf_backend.arn
 }
 
-# 4) Infrastructure permissions (adjust to your modules over time)
+# 4) Infrastructure permissions (adjust to our modules over time)
 data "aws_iam_policy_document" "tf_infra" {
   statement {
     sid    = "Networking"
@@ -193,9 +193,11 @@ data "aws_iam_policy_document" "tf_infra" {
     actions = [
       "secretsmanager:CreateSecret",
       "secretsmanager:PutSecretValue",
+      "secretsmanager:GetResourcePolicy",
       "secretsmanager:UpdateSecret",
       "secretsmanager:DescribeSecret",
       "secretsmanager:GetSecretValue",
+      "secretsmanager:DeleteSecret",
       "secretsmanager:TagResource"
     ]
     resources = ["*"]
