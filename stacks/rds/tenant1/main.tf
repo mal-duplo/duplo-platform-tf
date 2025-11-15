@@ -39,6 +39,10 @@ resource "aws_secretsmanager_secret" "db_credentials" {
   name        = "${var.tenant_name}/rds/appdb"
   description = "RDS app DB credentials for ${var.tenant_name}"
   kms_key_id  = var.tenant_kms_key_arn
+  
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_secretsmanager_secret_version" "db_credentials" {
