@@ -8,4 +8,4 @@ db_name             = "appdb"
 db_username         = "appuser"
 db_instance_class   = "db.t3.micro"
 db_allocated_storage = 20
-db_engine_version   = "16.3"
+db_engine_version   = "15.5"
