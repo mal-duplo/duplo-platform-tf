@@ -6,6 +6,6 @@ tenant_kms_key_arn = "arn:aws:kms:us-east-1:359100918503:key/4f465fd5-e497-4485-
 
 db_name             = "appdb"
 db_username         = "appuser"
-db_instance_class   = "db.t3.micro"
+db_instance_class   = "db.m5.large"
 db_allocated_storage = 20
-db_engine_version   = "15.5"
+db_engine_version   = "16.3"
