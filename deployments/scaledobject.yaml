@@ -1,0 +1,20 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: sqs-worker-scaler
+  namespace: duploservices-tenant-a
+spec:
+  scaleTargetRef:
+    name: sqs-worker
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  pollingInterval: 30
+  cooldownPeriod: 60
+  triggers:
+    - type: aws-sqs-queue
+      metadata:
+        queueURL: "https://sqs.us-east-1.amazonaws.com/359100918503/tenant-a-demo-queue"
+        awsRegion: "us-east-1"
+        queueLength: "5"
+      authenticationRef:
+        name: keda-aws-credentials

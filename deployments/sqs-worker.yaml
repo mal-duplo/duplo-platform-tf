@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sqs-worker
+  namespace: duploservices-tenant-a
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sqs-worker
+  template:
+    metadata:
+      labels:
+        app: sqs-worker
+    spec:
+      containers:
+        - name: sqs-worker
+          image: amazon/aws-cli:2.15.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Starting SQS worker...";
+              while true; do
+                aws sqs receive-message \
+                  --queue-url ${SQS_QUEUE_URL} \
+                  --wait-time-seconds 10 \
+                  --max-number-of-messages 1 \
+                  --region ${AWS_REGION} \
+                  --output text | grep "MESSAGE" && \
+                  echo "Processed one message";
+              done
+          env:
+            - name: SQS_QUEUE_URL
+              value: "https://sqs.us-east-1.amazonaws.com/359100918503/tenant-a-demo-queue"
+            - name: AWS_REGION
+              value: "us-east-1"
