@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-worker
+  namespace: duploservices-tenant-a
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gpu-worker
+  template:
+    metadata:
+      labels:
+        app: gpu-worker
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/gpu: "true"
+
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "gpu"
+          effect: "NoSchedule"
+
+      containers:
+        - name: gpu-worker
+          image: busybox
+          command: ["sh", "-c"]
+          args:
+            - echo "Simulated GPU workload running on GPU node"; sleep 3600
