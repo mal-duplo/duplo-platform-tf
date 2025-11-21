@@ -1,0 +1,13 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: keda-aws-credentials
+  namespace: duploservices-tenant-a
+spec:
+  secretTargetRef:
+    - parameter: awsAccessKeyID
+      name: aws-creds
+      key: awsAccessKeyID
+    - parameter: awsSecretAccessKey
+      name: aws-creds
+      key: awsSecretAccessKey
