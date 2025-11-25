@@ -28,12 +28,12 @@ jobs:
       DUPLO_TENANT: ${{ vars.DUPLO_TENANT }}
 
     steps:
-    - name: Duplo Setup
-      uses: duplocloud/[email protected]
+      - name: Duplo Setup
+        uses: duplocloud/actions@v0.0.13
 
-    - name: Update Kubernetes Service
-      uses: duplocloud/actions/[email protected]
-      with:
-        name: frontend-nginx
-        image: ${{ inputs.image }}
-        type: service
+      - name: Update Kubernetes Service
+        uses: duplocloud/actions/update-image@v0.0.13
+        with:
+          name: frontend-nginx
+          image: ${{ inputs.image }}
+          type: service
