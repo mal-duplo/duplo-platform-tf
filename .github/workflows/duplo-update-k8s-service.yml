@@ -1,0 +1,39 @@
+name: duplo-update-k8s-service
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub Environment / Duplo tenant"
+        type: environment
+        default: tenant-a
+        required: true
+      image:
+        description: "Full image URI to deploy (e.g. 359100918503.dkr.ecr.us-east-1.amazonaws.com/app:tag)"
+        type: string
+        required: true
+
+jobs:
+  update_service:
+    name: Update Kubernetes Service in Duplo
+    runs-on: ubuntu-latest
+
+    environment:
+      name: ${{ inputs.environment }}
+
+    env:
+      DUPLO_TOKEN:  ${{ secrets.DUPLO_TOKEN }}
+      DUPLO_HOST:   ${{ vars.DUPLO_HOST }}
+      DUPLO_TENANT: ${{ vars.DUPLO_TENANT }}
+
+    steps:
+    - name: Duplo Setup
+      uses: duplocloud/[email protected]
+
+    - name: Update Kubernetes Service
+      uses: duplocloud/actions/[email protected]
+      with:
+        name: frontend-nginx
+        image: ${{ inputs.image }}
+        type: service
